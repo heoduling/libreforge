@@ -81,10 +81,27 @@ import com.willfp.libreforge.triggers.Triggers
 import com.willfp.libreforge.triggers.impl.TriggerTridentHit
 import com.willfp.libreforge.triggers.placeholders.impl.TriggerPlaceholderHits
 import org.bukkit.Bukkit
-import org.bukkit.entity.LivingEntity
 import org.bukkit.event.Listener
 
 internal lateinit var plugin: LibreforgeSpigotPlugin
+    private set
+
+internal data class RefreshSettings(
+    val pickupEnabled: Boolean,
+    val pickupRequireMeta: Boolean,
+    val entitiesEnabled: Boolean,
+    val entityInterval: Long,
+    val skipAfkPlayers: Boolean
+)
+
+@Volatile
+internal var refreshSettings = RefreshSettings(
+    pickupEnabled = true,
+    pickupRequireMeta = true,
+    entitiesEnabled = true,
+    entityInterval = 60L,
+    skipAfkPlayers = true
+)
     private set
 
 class LibreforgeSpigotPlugin : EcoPlugin() {
@@ -103,9 +120,7 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
     )
 
     private val displayModule = ItemFlagDisplay(this)
-
-    private var entityRefreshInterval = 20L
-    private var skipAFKPlayers = false
+    private var configuredChainIds = emptySet<String>()
 
     init {
         plugin = this
@@ -120,6 +135,7 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
 
     override fun handleEnable() {
         onDisable { clearAttackCooldownSnapshots() }
+        EntityRefreshListener.backfillLoadedEntities()
 
         if (this.configYml.getBool("show-libreforge-info")) {
             this.logger.info("")
@@ -161,22 +177,33 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
         TriggerTridentAttack.clearSnapshots()
         TriggerPlaceholderHits.clearAll()
         EffectDropPickupItem.clearAll()
-        clearAllHolderCaches()
+        ItemRefreshListener.clearPendingPickupRefreshes()
+        EntityRefreshListener.clear()
+        clearAllHolderState()
     }
 
     override fun handleReload() {
-        entityRefreshInterval = configYml.getInt("refresh.entities.interval").toLong()
-        skipAFKPlayers = configYml.getBool("refresh.players.skip-afk-players")
+        refreshSettings = RefreshSettings(
+            pickupEnabled = configYml.getBool("refresh.pickup.enabled"),
+            pickupRequireMeta = configYml.getBool("refresh.pickup.require-meta"),
+            entitiesEnabled = configYml.getBool("refresh.entities.enabled"),
+            entityInterval = configYml.getInt("refresh.entities.interval").toLong(),
+            skipAfkPlayers = configYml.getBool("refresh.players.skip-afk-players")
+        )
 
-        for (config in chainsYml.getSubsections("chains")) {
-            Effects.register(
-                config.getString("id"),
-                Effects.compileChain(
-                    config.getSubsections("effects"),
-                    ViolationContext(this, "chains.yml")
-                ) ?: continue
-            )
+        val replacementChains = buildMap {
+            for (config in chainsYml.getSubsections("chains")) {
+                put(
+                    config.getString("id"),
+                    Effects.compileChain(
+                        config.getSubsections("effects"),
+                        ViolationContext(this@LibreforgeSpigotPlugin, "chains.yml")
+                    ) ?: continue
+                )
+            }
         }
+        Effects.replaceChains(configuredChainIds, replacementChains)
+        configuredChainIds = replacementChains.keys
 
         for (config in tagsYml.getSubsections("tags")) {
             Items.registerTag(CustomTag(config, this))
@@ -204,7 +231,7 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
 
         displayModule.reload()
 
-        clearAllHolderCaches()
+        invalidateAllHolderCaches()
 
         hasLoaded = true
     }
@@ -216,23 +243,12 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
         // Holders are presumed stable between events; pollEffects() skips the provider rescan.
         plugin.scheduler.runTimer(20, 1, PlayerPollTask())
 
-        if (configYml.getBool("refresh.entities.enabled")) {
-            /*
-            Poll for condition changes in entities.
-            Each world is offset by 3 ticks to prevent lag spikes.
-             */
-            var currentOffset = 30L
-            for (world in Bukkit.getWorlds()) {
-                plugin.scheduler.runTimer(currentOffset, configYml.getInt("refresh.entities.interval").toLong()) {
-                    for (entity in world.entities) {
-                        if (entity is LivingEntity) {
-                            SchedulerHelper.runTask(this@LibreforgeSpigotPlugin, entity) {
-                                entity.toDispatcher().pollEffects()
-                            }
-                        }
-                    }
-                }
-                currentOffset += 3
+        val settings = refreshSettings
+        if (settings.entitiesEnabled) {
+            // The global task only walks weak references. Every live entity API access
+            // happens after ownership has transferred to that entity's scheduler.
+            plugin.scheduler.runTimer(30, settings.entityInterval) {
+                EntityRefreshListener.pollTrackedEntities()
             }
         }
 
@@ -323,9 +339,10 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
         override fun run() {
             val currentSlot = slot
             slot = (slot + 1) % 20
+            val settings = refreshSettings
             for (player in Bukkit.getOnlinePlayers()) {
                 if ((player.uniqueId.leastSignificantBits.toInt() and Int.MAX_VALUE) % 20 != currentSlot) continue
-                if (skipAFKPlayers && AFKManager.isAfk(player)) continue
+                if (settings.skipAfkPlayers && AFKManager.isAfk(player)) continue
                 SchedulerHelper.runTask(this@LibreforgeSpigotPlugin, player) {
                     player.toDispatcher().pollEffects()
                 }

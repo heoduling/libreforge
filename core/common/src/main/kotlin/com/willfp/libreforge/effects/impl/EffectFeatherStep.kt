@@ -4,8 +4,10 @@ import com.willfp.eco.core.config.interfaces.Config
 import com.willfp.libreforge.Dispatcher
 import com.willfp.libreforge.NoCompileData
 import com.willfp.libreforge.ProvidedHolder
+import com.willfp.libreforge.SchedulerHelper
 import com.willfp.libreforge.effects.Effect
 import com.willfp.libreforge.effects.Identifiers
+import org.bukkit.Bukkit
 import org.bukkit.Tag
 import org.bukkit.event.EventHandler
 import org.bukkit.event.block.Action
@@ -17,7 +19,7 @@ object EffectFeatherStep : Effect<NoCompileData>("feather_step") {
     override val description = "Prevents the player trampling crops."
     override val categories = setOf("movement", "player")
 
-    private val players = ConcurrentHashMap<UUID, MutableList<UUID>>()
+    private val players = ConcurrentHashMap<UUID, List<UUID>>()
 
     override fun onEnable(
         dispatcher: Dispatcher<*>,
@@ -26,13 +28,12 @@ object EffectFeatherStep : Effect<NoCompileData>("feather_step") {
         holder: ProvidedHolder,
         compileData: NoCompileData
     ) {
-        players.computeIfAbsent(dispatcher.uuid) { mutableListOf() }.add(identifiers.uuid)
+        players.compute(dispatcher.uuid) { _, active -> active.orEmpty() + identifiers.uuid }
     }
 
     override fun onDisable(dispatcher: Dispatcher<*>, identifiers: Identifiers, holder: ProvidedHolder) {
         players.computeIfPresent(dispatcher.uuid) { _, active ->
-            active.remove(identifiers.uuid)
-            active.takeIf { it.isNotEmpty() }
+            (active - identifiers.uuid).takeIf { it.isNotEmpty() }
         }
     }
 
@@ -42,16 +43,19 @@ object EffectFeatherStep : Effect<NoCompileData>("feather_step") {
             return
         }
 
-        val player = event.player
+        // Extra check for pressure plates. On Folia, only inspect the block after confirming
+        // that this thread owns its region; physical events can be fired from another region.
+        event.clickedBlock?.let { block ->
+            if (SchedulerHelper.isFolia && !Bukkit.isOwnedByCurrentRegion(block.location)) {
+                return
+            }
 
-        // Extra check for pressure plates
-        if (player.location.block.type in Tag.PRESSURE_PLATES.values
-            || player.location.subtract(0.0, 1.0, 0.0).block.type in Tag.PRESSURE_PLATES.values
-        ) {
-            return
+            if (block.type in Tag.PRESSURE_PLATES.values) {
+                return
+            }
         }
 
-        if (players[player.uniqueId]?.isNotEmpty() == true) {
+        if (players[event.player.uniqueId]?.isNotEmpty() == true) {
             event.isCancelled = true
         }
     }
