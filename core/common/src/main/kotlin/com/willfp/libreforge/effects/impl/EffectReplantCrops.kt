@@ -84,7 +84,8 @@ object EffectReplantCrops : Effect<NoCompileData>("replant_crops") {
         }
 
         if (type in arrayOf(
-                Material.GLOW_BERRIES,
+                Material.CAVE_VINES,
+                Material.CAVE_VINES_PLANT,
                 Material.SWEET_BERRY_BUSH,
                 Material.CACTUS,
                 Material.BAMBOO,
@@ -109,16 +110,17 @@ object EffectReplantCrops : Effect<NoCompileData>("replant_crops") {
         }
 
         val seed = if (consumeSeeds) {
-            ItemStack(
-                when (type) {
-                    Material.WHEAT -> Material.WHEAT_SEEDS
-                    Material.POTATOES -> Material.POTATO
-                    Material.CARROTS -> Material.CARROT
-                    Material.BEETROOTS -> Material.BEETROOT_SEEDS
-                    Material.COCOA -> Material.COCOA_BEANS
-                    else -> type
-                }
-            )
+            val seedType = when (type) {
+                Material.WHEAT -> Material.WHEAT_SEEDS
+                Material.POTATOES -> Material.POTATO
+                Material.CARROTS -> Material.CARROT
+                Material.BEETROOTS -> Material.BEETROOT_SEEDS
+                Material.COCOA -> Material.COCOA_BEANS
+                else -> type
+            }
+            // Ageable also includes non-item blocks, such as melon stems.
+            if (!seedType.isItem) return
+            ItemStack(seedType)
         } else {
             null
         }
