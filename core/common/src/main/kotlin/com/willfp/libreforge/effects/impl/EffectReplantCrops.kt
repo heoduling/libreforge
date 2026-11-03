@@ -12,6 +12,7 @@ import com.willfp.libreforge.arguments
 import com.willfp.libreforge.effects.Effect
 import com.willfp.libreforge.effects.Identifiers
 import com.willfp.libreforge.plugin
+import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.block.data.Ageable
 import org.bukkit.event.EventHandler
@@ -107,8 +108,8 @@ object EffectReplantCrops : Effect<NoCompileData>("replant_crops") {
             return
         }
 
-        if (consumeSeeds) {
-            val item = ItemStack(
+        val seed = if (consumeSeeds) {
+            ItemStack(
                 when (type) {
                     Material.WHEAT -> Material.WHEAT_SEEDS
                     Material.POTATOES -> Material.POTATO
@@ -118,13 +119,11 @@ object EffectReplantCrops : Effect<NoCompileData>("replant_crops") {
                     else -> type
                 }
             )
-
-            val hasSeeds = player.inventory.removeItem(item).isEmpty()
-
-            if (!hasSeeds) {
-                return
-            }
+        } else {
+            null
         }
+
+        if (seed != null && !player.inventory.containsAtLeast(seed, 1)) return
 
         if (data.age != data.maximumAge) {
             if (onlyFullyGrown) {
@@ -137,12 +136,20 @@ object EffectReplantCrops : Effect<NoCompileData>("replant_crops") {
 
         data.age = 0
 
-        // The break event completes before the crop can be restored. Carry only snapshots
-        // into the delayed task, then resolve the live block on its owning region.
+        // The break event completes before the crop can be restored. Resolve the live
+        // block on its region, and recheck player ownership before accessing inventory.
         val location = block.location
         val replantedData = data.clone() as Ageable
         SchedulerHelper.runTaskLater(plugin, location, Runnable {
             val target = location.block
+            // Another interaction or a cancelled break may have left a block here.
+            // Check the live position before charging for or performing the replant.
+            if (!target.type.isAir || !target.canPlace(replantedData)) return@Runnable
+            if (seed != null) {
+                // The player may have moved to another region during the delay.
+                if (SchedulerHelper.isFolia && !Bukkit.isOwnedByCurrentRegion(player)) return@Runnable
+                if (!player.isOnline || player.inventory.removeItem(seed).isNotEmpty()) return@Runnable
+            }
             target.type = type
             target.blockData = replantedData
         }, 1L)
