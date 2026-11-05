@@ -9,6 +9,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.entity.EntityDamageByEntityEvent
 import org.bukkit.event.entity.EntityDamageEvent
+import org.bukkit.event.entity.EntityDamageEvent.DamageModifier
 
 object TriggerShieldBlock : Trigger("shield_block") {
     override val description = "Fires when the player blocks an attack with a shield."
@@ -45,6 +46,12 @@ object TriggerShieldBlock : Trigger("shield_block") {
         if (!victim.isBlocking) {
             return
         }
+
+        // An actual shield block reduces damage; merely raising the shield does not.
+        @Suppress("DEPRECATION")
+        val blocked = event.isApplicable(DamageModifier.BLOCKING) &&
+            event.getDamage(DamageModifier.BLOCKING) < 0.0
+        if (!blocked) return
 
         this.dispatch(
             victim.toDispatcher(),
