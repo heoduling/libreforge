@@ -1,0 +1,259 @@
+{
+  "baseline_native_red": {
+    "front": {
+      "serial": 1,
+      "hit": 1,
+      "mode": "front",
+      "effect": "count",
+      "events": 1,
+      "calls": 1,
+      "bolts": 0,
+      "base": 4,
+      "blocking": -4,
+      "applicable": true,
+      "using": true,
+      "cancelled": false,
+      "cause": "ENTITY_ATTACK",
+      "finalDamage": 0,
+      "value": 4,
+      "defenderHealth": 10,
+      "attackerHealth": 20,
+      "blindness": false,
+      "fatigue": false,
+      "shieldDamage": 5,
+      "time": 1793900498272
+    },
+    "rear": {
+      "serial": 2,
+      "hit": 1,
+      "mode": "back",
+      "effect": "count",
+      "events": 1,
+      "calls": 1,
+      "bolts": 0,
+      "base": 4,
+      "blocking": 0,
+      "applicable": true,
+      "using": true,
+      "cancelled": false,
+      "cause": "ENTITY_ATTACK",
+      "finalDamage": 4,
+      "value": 4,
+      "defenderHealth": 6,
+      "attackerHealth": 20,
+      "blindness": false,
+      "fatigue": false,
+      "shieldDamage": 0,
+      "time": 1793900500222
+    }
+  },
+  "unit_red": {
+    "tests": 8,
+    "failures": 4
+  },
+  "unit_green": {
+    "tests": 40,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": [
+      {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.ActiveEffectSortTest"
+      },
+      {
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.AllocationOptimizationTest"
+      },
+      {
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.DurabilityComponentsTest"
+      },
+      {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.EffectTransitionTest"
+      },
+      {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.HolderScanAllocationTest"
+      },
+      {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.ItemProvidedHolderHashTest"
+      },
+      {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.triggers.impl.BlockDropSnapshotTest"
+      },
+      {
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.triggers.impl.ShieldBlockTest"
+      },
+      {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "name": "com.willfp.libreforge.triggers.placeholders.VictimPlaceholderOwnershipTest"
+      }
+    ]
+  },
+  "runtime_green": {
+    "hits": 117,
+    "phases": 17,
+    "pressure": 100,
+    "modes": {
+      "front": 6,
+      "back": 5,
+      "off": 1,
+      "offhand": 1,
+      "cancel": 1,
+      "thorns": 1,
+      "absorption": 1,
+      "partial": 1,
+      "pressure": 100
+    },
+    "effects": {
+      "count": 108,
+      "smite": 2,
+      "flinch": 2,
+      "paralyze": 2,
+      "heal": 3
+    },
+    "log_sha256": "759c18c16a65b97e6f06cdbdfc88418381da2890116267a81873add14e226ad6"
+  },
+  "fixtures": {
+    "absorption": {
+      "serial": 7,
+      "hit": 1,
+      "mode": "absorption",
+      "effect": "count",
+      "events": 1,
+      "calls": 0,
+      "bolts": 0,
+      "base": 4,
+      "blocking": 0,
+      "applicable": true,
+      "using": true,
+      "cancelled": false,
+      "cause": "ENTITY_ATTACK",
+      "finalDamage": 0,
+      "defenderHealth": 10,
+      "absorption": 16,
+      "attackerHealth": 20,
+      "blindness": false,
+      "fatigue": false,
+      "shieldDamage": 0,
+      "time": 1793900882859
+    },
+    "partial": {
+      "serial": 8,
+      "hit": 1,
+      "mode": "partial",
+      "effect": "count",
+      "events": 1,
+      "calls": 1,
+      "bolts": 0,
+      "base": 4,
+      "blocking": -2,
+      "applicable": true,
+      "using": true,
+      "cancelled": false,
+      "cause": "ENTITY_ATTACK",
+      "finalDamage": 2,
+      "value": 4,
+      "defenderHealth": 8,
+      "absorption": 0,
+      "attackerHealth": 20,
+      "blindness": false,
+      "fatigue": false,
+      "shieldDamage": 0,
+      "time": 1793900884708
+    },
+    "heal_cooldown": [
+      {
+        "serial": 15,
+        "hit": 1,
+        "mode": "front",
+        "effect": "heal",
+        "events": 1,
+        "calls": 1,
+        "bolts": 0,
+        "base": 4,
+        "blocking": -4,
+        "applicable": true,
+        "using": true,
+        "cancelled": false,
+        "cause": "ENTITY_ATTACK",
+        "finalDamage": 0,
+        "value": 4,
+        "defenderHealth": 10.800000190734863,
+        "absorption": 0,
+        "attackerHealth": 20,
+        "blindness": false,
+        "fatigue": false,
+        "shieldDamage": 5,
+        "time": 1793900897808
+      },
+      {
+        "serial": 15,
+        "hit": 2,
+        "mode": "front",
+        "effect": "heal",
+        "events": 1,
+        "calls": 1,
+        "bolts": 0,
+        "base": 4,
+        "blocking": -4,
+        "applicable": true,
+        "using": true,
+        "cancelled": false,
+        "cause": "ENTITY_ATTACK",
+        "finalDamage": 0,
+        "value": 4,
+        "defenderHealth": 10,
+        "absorption": 0,
+        "attackerHealth": 20,
+        "blindness": false,
+        "fatigue": false,
+        "shieldDamage": 10,
+        "time": 1793900898509
+      }
+    ]
+  },
+  "artifacts": {
+    "baseline_sha256": "328d9c1c3d58cd072d2f37cc83b3eb21605795b086c1db941313e8d7854334f1",
+    "candidate_sha256": "e6c25c9f4280f22f5316d4672dee15a75aba55a3d4ccb38a8eacf2c54ac1566d",
+    "candidate_bytes": 29357399,
+    "changed_entries": [
+      "com/willfp/libreforge/triggers/impl/TriggerShieldBlock.class"
+    ],
+    "core_sha256": "0bbeb0d4c5badca9e5530d2272ea9f0714595dbf39d952b5ae0102a7710285c1",
+    "eco_sha256": "3d99485df20b08ca661474d3dc7dcdfbfbe1569a73e574d0cb0043fd06422d7c",
+    "mcmmo_sha256": "feadbaa88f4784e25ff34b60d38741910560e4bba43e9dd90477012cde42a9ab"
+  }
+}
