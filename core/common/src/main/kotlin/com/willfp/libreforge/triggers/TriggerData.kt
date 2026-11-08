@@ -6,8 +6,10 @@ import com.willfp.libreforge.EmptyProvidedHolder
 import com.willfp.libreforge.GlobalDispatcher
 import com.willfp.libreforge.NamedValue
 import com.willfp.libreforge.ProvidedHolder
+import com.willfp.libreforge.SchedulerHelper
 import com.willfp.libreforge.getProvider
 import com.willfp.libreforge.triggers.impl.TriggerBlank
+import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.block.Block
 import org.bukkit.entity.LivingEntity
@@ -43,7 +45,11 @@ class TriggerData(
     val location: Location? = victim?.location ?: player?.location,
     val projectile: Projectile? = null,
     val velocity: Vector? = player?.velocity ?: victim?.velocity,
-    val item: ItemStack? = player?.inventory?.itemInMainHand ?: victim?.equipment?.itemInMainHand,
+    // A projectile's shooter can belong to another region when the damage event fires.
+    val item: ItemStack? = player?.takeIf { !SchedulerHelper.isFolia || Bukkit.isOwnedByCurrentRegion(it) }
+        ?.inventory?.itemInMainHand
+        ?: victim?.takeIf { !SchedulerHelper.isFolia || Bukkit.isOwnedByCurrentRegion(it) }
+            ?.equipment?.itemInMainHand,
     val text: String? = null,
     val value: Double = 1.0,
     val altValue: Double = 1.0
