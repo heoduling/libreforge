@@ -31,8 +31,7 @@ private val transientMetadataKeys = setOf(
     "libreforge-homing-arrows-tracked",
     "libreforge-ignite",
     "libreforge-damaged-twice",
-    "ignore-nearby-damage",
-    "libreforge-vms"
+    "ignore-nearby-damage"
 )
 
 object EffectDataFixer : Listener {
@@ -125,6 +124,9 @@ object PaperEffectDataFixer : Listener {
             EffectVictimSpeedMultiplier.cleanup(entity)
         }
         transientMetadataKeys.forEach { entity.removeMetadata(it, plugin) }
+        if (entity !is LivingEntity) {
+            entity.removeMetadata("libreforge-vms", plugin)
+        }
         TriggerTridentHit.clearSnapshot(entity.uniqueId)
         TriggerTridentAttack.clearSnapshot(entity.uniqueId)
         TriggerPlaceholderHits.clearVictim(entity.uniqueId)

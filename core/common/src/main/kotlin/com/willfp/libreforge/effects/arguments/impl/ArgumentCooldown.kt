@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ceil
 
 object ArgumentCooldown : EffectArgument<Chain?>("cooldown") {
-    // Maps cooldown groups to Player UUIDs mapped to expiry time
-    private val cooldownTracker = ConcurrentHashMap<String, ConcurrentHashMap<UUID, Long>>()
+    // Maps each dispatcher to its cooldown groups and expiry times.
+    private val cooldownTracker = ConcurrentHashMap<UUID, ConcurrentHashMap<String, Long>>()
 
     override fun isMet(element: ConfigurableElement, trigger: DispatchedTrigger, compileData: Chain?): Boolean {
         return getCooldown(element, trigger) <= 0
@@ -31,13 +31,14 @@ object ArgumentCooldown : EffectArgument<Chain?>("cooldown") {
     private fun getCooldown(element: ConfigurableElement, trigger: DispatchedTrigger): Int {
         val group = element.config.getStringOrNull("cooldown_group") ?: element.uuid.toString()
 
-        val effectEndTimes = cooldownTracker[group] ?: return 0
-        val endTime = effectEndTimes[trigger.dispatcher.uuid] ?: return 0
+        val uuid = trigger.dispatcher.uuid
+        val effectEndTimes = cooldownTracker[uuid] ?: return 0
+        val endTime = effectEndTimes[group] ?: return 0
 
         val msLeft = endTime - System.currentTimeMillis()
         if (msLeft <= 0) {
-            cooldownTracker.computeIfPresent(group) { _, current ->
-                current.remove(trigger.dispatcher.uuid, endTime)
+            cooldownTracker.computeIfPresent(uuid) { _, current ->
+                current.remove(group, endTime)
                 current.takeIf { it.isNotEmpty() }
             }
             return 0
@@ -48,11 +49,13 @@ object ArgumentCooldown : EffectArgument<Chain?>("cooldown") {
 
     override fun ifMet(element: ConfigurableElement, trigger: DispatchedTrigger, compileData: Chain?) {
         val group = element.config.getStringOrNull("cooldown_group") ?: element.uuid.toString()
+        // Expressions may reenter another cooldown group for this dispatcher.
+        val endTime = System.currentTimeMillis() +
+                (element.config.getDoubleFromExpression("cooldown", trigger.data) * 1000L).toLong()
 
-        cooldownTracker.compute(group) { _, existing ->
-            val effectEndTimes = existing ?: ConcurrentHashMap()
-            effectEndTimes[trigger.dispatcher.uuid] = System.currentTimeMillis() +
-                    (element.config.getDoubleFromExpression("cooldown", trigger.data) * 1000L).toLong()
+        cooldownTracker.compute(trigger.dispatcher.uuid) { _, existing ->
+            val effectEndTimes = existing ?: ConcurrentHashMap(1)
+            effectEndTimes[group] = endTime
             effectEndTimes
         }
     }
@@ -98,11 +101,6 @@ object ArgumentCooldown : EffectArgument<Chain?>("cooldown") {
     }
 
     internal fun clearDispatcher(uuid: UUID) {
-        cooldownTracker.keys.forEach { group ->
-            cooldownTracker.computeIfPresent(group) { _, effectEndTimes ->
-                effectEndTimes.remove(uuid)
-                effectEndTimes.takeIf { it.isNotEmpty() }
-            }
-        }
+        cooldownTracker.remove(uuid)
     }
 }

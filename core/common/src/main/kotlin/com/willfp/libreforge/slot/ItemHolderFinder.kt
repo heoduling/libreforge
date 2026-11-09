@@ -9,6 +9,12 @@ import com.willfp.libreforge.TypedProvidedHolder
 import com.willfp.libreforge.get
 import com.willfp.libreforge.registerRefreshFunctionOwnedBy
 import com.willfp.libreforge.slot.impl.NumericSlotType
+import com.willfp.libreforge.slot.impl.SlotTypeBoots
+import com.willfp.libreforge.slot.impl.SlotTypeChestplate
+import com.willfp.libreforge.slot.impl.SlotTypeHelmet
+import com.willfp.libreforge.slot.impl.SlotTypeLeggings
+import com.willfp.libreforge.slot.impl.SlotTypeMainhand
+import com.willfp.libreforge.slot.impl.SlotTypeOffhand
 import org.bukkit.Material
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
@@ -56,40 +62,61 @@ abstract class ItemHolderFinder<T : Holder> {
         slot: SlotType,
         destination: MutableCollection<TypedProvidedHolder<T>>
     ) {
-        for (item in slot.getItems(entity)) {
-            // Empty equipment slots cannot provide item effects. Reject them before
-            // each finder creates FastItemStack / NBT / PDC wrappers. Do not reject
-            // ordinary, unenchanted items: custom items and reforges may use them.
-            // Compare the three air materials directly: Material.isAir() resolves
-            // a BlockType, which is unnecessary on this hot item-only path.
-            val type = item.type
-            if (type == Material.AIR || type == Material.CAVE_AIR || type == Material.VOID_AIR) {
-                continue
-            }
-            val found = find(item)
-            // A single holder has nothing to share; keep that common path allocation-free.
-            if (found.size == 1) {
-                val holder = found[0]
-                if (isValidInSlot(holder, slot)) {
-                    destination.add(SlotItemProvidedHolder(holder, item, slot))
+        // Match native objects by identity: custom slots may reuse a native id.
+        val item = when {
+            slot === SlotTypeMainhand -> entity.equipment?.itemInMainHand
+            slot === SlotTypeOffhand -> entity.equipment?.itemInOffHand
+            slot === SlotTypeHelmet -> entity.equipment?.helmet
+            slot === SlotTypeChestplate -> entity.equipment?.chestplate
+            slot === SlotTypeLeggings -> entity.equipment?.leggings
+            slot === SlotTypeBoots -> entity.equipment?.boots
+            else -> {
+                for (customItem in slot.getItems(entity)) {
+                    appendItemHolders(customItem, slot, destination)
                 }
-                continue
+                return
             }
-            var accepted: ArrayList<T>? = null
-            for (holder in found) {
-                if (isValidInSlot(holder, slot)) {
-                    if (accepted == null) accepted = ArrayList(found.size)
-                    accepted.add(holder)
-                }
+        }
+        if (item != null) appendItemHolders(item, slot, destination)
+    }
+
+    private fun appendItemHolders(
+        item: ItemStack,
+        slot: SlotType,
+        destination: MutableCollection<TypedProvidedHolder<T>>
+    ) {
+        // Empty equipment slots cannot provide item effects. Reject them before
+        // each finder creates FastItemStack / NBT / PDC wrappers. Do not reject
+        // ordinary, unenchanted items: custom items and reforges may use them.
+        // Compare the three air materials directly: Material.isAir() resolves
+        // a BlockType, which is unnecessary on this hot item-only path.
+        val type = item.type
+        if (type == Material.AIR || type == Material.CAVE_AIR || type == Material.VOID_AIR) {
+            return
+        }
+        val found = find(item)
+        // A single holder has nothing to share; keep that common path allocation-free.
+        if (found.size == 1) {
+            val holder = found[0]
+            if (isValidInSlot(holder, slot)) {
+                destination.add(SlotItemProvidedHolder(holder, item, slot))
             }
-            // Finish extension callbacks before hashing: if a finder updates the item,
-            // all wrappers must describe the final item returned by this scan.
-            // This value is local to one item occurrence, never cached across refreshes.
-            if (accepted != null) {
-                val itemHash = item.hashCode()
-                for (holder in accepted) {
-                    destination.add(SlotItemProvidedHolder(holder, item, slot, itemHash))
-                }
+            return
+        }
+        var accepted: ArrayList<T>? = null
+        for (holder in found) {
+            if (isValidInSlot(holder, slot)) {
+                if (accepted == null) accepted = ArrayList(found.size)
+                accepted.add(holder)
+            }
+        }
+        // Finish extension callbacks before hashing: if a finder updates the item,
+        // all wrappers must describe the final item returned by this scan.
+        // This value is local to one item occurrence, never cached across refreshes.
+        if (accepted != null) {
+            val itemHash = item.hashCode()
+            for (holder in accepted) {
+                destination.add(SlotItemProvidedHolder(holder, item, slot, itemHash))
             }
         }
     }
