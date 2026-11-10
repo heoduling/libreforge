@@ -80,7 +80,11 @@ object EffectDrill : MineBlockEffect<NoCompileData>("drill") {
 
         for (i in 1..amount) {
             val simplified = VectorUtils.simplifyVector(player.location.direction.normalize()).multiply(i)
-            val toBreak = block.world.getBlockAt(block.location.clone().add(simplified))
+            val targetLocation = block.location.clone().add(simplified)
+            if (!isWithinBuildHeight(block.world, targetLocation.blockY)) {
+                continue
+            }
+            val toBreak = block.world.getBlockAt(targetLocation)
 
             if (blacklist.matches(toBreak)) {
                 continue

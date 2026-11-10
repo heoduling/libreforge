@@ -7,6 +7,7 @@ import com.willfp.libreforge.plugin
 import com.willfp.libreforge.triggers.TriggerData
 import com.willfp.libreforge.triggers.TriggerParameter
 import org.bukkit.Material
+import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.Player
 import java.util.UUID
@@ -25,6 +26,9 @@ abstract class MineBlockEffect<T : Any>(id: String) : Effect<T>(id) {
         return !block.hasMetadata(ignoreKey)
     }
 
+    protected fun isWithinBuildHeight(world: World, y: Int): Boolean =
+        y >= world.minHeight && y < world.maxHeight
+
     protected fun Player.breakBlocksSafely(blocks: Collection<Block>, preventTriggers: Boolean = false) {
         if (!breakingPlayers.add(this.uniqueId)) {
             return
@@ -32,13 +36,17 @@ abstract class MineBlockEffect<T : Any>(id: String) : Effect<T>(id) {
 
         try {
             if (plugin.configYml.getBool("effects.use-setblock-break")) {
-                blocks.forEach { it.type = Material.AIR }
+                blocks.forEach {
+                    if (isWithinBuildHeight(it.world, it.y)) it.type = Material.AIR
+                }
             } else if (preventTriggers) {
-                blocks.forEach { it.breakNaturally() }
+                blocks.forEach {
+                    if (isWithinBuildHeight(it.world, it.y)) it.breakNaturally()
+                }
             } else {
                 this.runExempted {
                     for (block in blocks) {
-                        if (block.world != this.world) {
+                        if (block.world != this.world || !isWithinBuildHeight(block.world, block.y)) {
                             continue
                         }
 
