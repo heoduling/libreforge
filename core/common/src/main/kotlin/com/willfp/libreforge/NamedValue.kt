@@ -4,6 +4,7 @@ import com.willfp.eco.core.placeholder.InjectablePlaceholder
 import com.willfp.eco.core.placeholder.StaticPlaceholder
 import com.willfp.eco.core.placeholder.context.PlaceholderContext
 import com.willfp.eco.core.placeholder.templates.SimpleInjectablePlaceholder
+import java.util.function.Supplier
 
 open class NamedValue(
     val identifiers: Collection<String>,
@@ -19,11 +20,17 @@ open class NamedValue(
         value: Any
     ) : this(identifiers, value.toString())
 
-    open val placeholders: List<InjectablePlaceholder> by lazy { identifiers.map {
-        StaticPlaceholder(
-            it
-        ) { value }
-    } }
+    open val placeholders: List<InjectablePlaceholder> by lazy {
+        if (identifiers.size <= 1) {
+            return@lazy identifiers.map { StaticPlaceholder(it) { value } }
+        }
+        var supplier: Supplier<String?>? = null
+        identifiers.map { identifier ->
+            val shared = supplier ?: Supplier<String?> { value }.also { supplier = it }
+            StaticPlaceholder(identifier, shared)
+        }
+    }
+
 }
 
 /*

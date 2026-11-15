@@ -28,11 +28,20 @@ class DispatchedTriggerFactory(
 
         var added = false
         dispatcherTriggers.compute(uuid) { _, dispatched ->
-            if (hash in dispatched.orEmpty()) {
-                dispatched
-            } else {
+            if (dispatched == null) {
                 added = true
-                dispatched.orEmpty() + hash
+                setOf(hash)
+            } else {
+                val hashes = if (dispatched.size == 1) {
+                    if (hash in dispatched) return@compute dispatched
+                    // Two hashes fit a four-bucket table at the default load factor.
+                    HashSet<Int>(4).apply { addAll(dispatched) }
+                } else {
+                    // Only this private compute operation creates or mutates these sets.
+                    dispatched as MutableSet<Int>
+                }
+                added = hashes.add(hash)
+                hashes
             }
         }
         if (!added) {
