@@ -1,3 +1,13 @@
+// Supplying mapped core symbols includes the optional adapter. Ordinary builds keep Bukkit scanning.
+val nativeEquipmentCore = providers.gradleProperty("nativeEquipmentCore")
+if (nativeEquipmentCore.isPresent) {
+    dependencies { compileOnly(files(nativeEquipmentCore)) }
+} else {
+    extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+        sourceSets.getByName("main").kotlin.exclude("**/CraftEquipmentReader.kt")
+    }
+}
+
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")

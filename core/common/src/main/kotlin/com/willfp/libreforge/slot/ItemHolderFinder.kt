@@ -8,6 +8,7 @@ import com.willfp.libreforge.TypedHolderProvider
 import com.willfp.libreforge.TypedProvidedHolder
 import com.willfp.libreforge.get
 import com.willfp.libreforge.registerRefreshFunctionOwnedBy
+import com.willfp.libreforge.slot.internal.EquipmentReaders
 import com.willfp.libreforge.slot.impl.NumericSlotType
 import com.willfp.libreforge.slot.impl.SlotTypeBoots
 import com.willfp.libreforge.slot.impl.SlotTypeChestplate
@@ -58,6 +59,33 @@ abstract class ItemHolderFinder<T : Holder> {
     }
 
     private fun appendHolders(
+        entity: LivingEntity,
+        slot: SlotType,
+        destination: MutableCollection<TypedProvidedHolder<T>>
+    ) {
+        if (entity is Player) {
+            appendLegacyHolders(entity, slot, destination)
+            return
+        }
+        val index = when {
+            slot === SlotTypeMainhand -> 0
+            slot === SlotTypeOffhand -> 1
+            slot === SlotTypeHelmet -> 2
+            slot === SlotTypeChestplate -> 3
+            slot === SlotTypeLeggings -> 4
+            slot === SlotTypeBoots -> 5
+            else -> -1
+        }
+        val reader = if (index >= 0) EquipmentReaders.readerFor(entity) else null
+        if (reader == null) {
+            appendLegacyHolders(entity, slot, destination)
+            return
+        }
+        val item = reader.read(entity, index)
+        if (item != null) appendItemHolders(item, slot, destination)
+    }
+
+    private fun appendLegacyHolders(
         entity: LivingEntity,
         slot: SlotType,
         destination: MutableCollection<TypedProvidedHolder<T>>

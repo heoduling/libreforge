@@ -80,6 +80,7 @@ import com.willfp.libreforge.triggers.DispatchedTriggerFactory
 import com.willfp.libreforge.triggers.Triggers
 import com.willfp.libreforge.triggers.impl.TriggerTridentHit
 import com.willfp.libreforge.triggers.placeholders.impl.TriggerPlaceholderHits
+import com.willfp.libreforge.slot.internal.EquipmentReaders
 import org.bukkit.Bukkit
 import org.bukkit.event.Listener
 
@@ -134,6 +135,10 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
     }
 
     override fun handleEnable() {
+        logger.info(
+            if (EquipmentReaders.initialize()) "Native equipment empty-slot filtering enabled"
+            else "Bukkit equipment scanning selected"
+        )
         onDisable { clearAttackCooldownSnapshots() }
         EntityRefreshListener.backfillLoadedEntities()
 
