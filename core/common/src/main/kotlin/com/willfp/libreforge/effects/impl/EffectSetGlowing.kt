@@ -22,6 +22,10 @@ import java.util.concurrent.ThreadLocalRandom
 
 object EffectSetGlowing : Effect<NoCompileData>("set_glowing") {
     private val recoveryKey = NamespacedKey("libreforge", "temporary_glowing")
+    private const val LAYERED_RECORD_VERSION = 1L
+
+    private data class Application(val deadline: Long, val glowing: Boolean, val token: Long)
+    private data class Recovery(val restoreGlowing: Boolean, val applications: List<Application>)
     override val description = "Makes the target entity glow, optionally reverting after a duration."
     override val categories = setOf("visual")
 
@@ -48,15 +52,20 @@ object EffectSetGlowing : Effect<NoCompileData>("set_glowing") {
         val duration = config.getOrNull("duration") { getIntFromExpression(it, data) }
 
         if (duration != null && duration > 0) {
-            val recovery = longArrayOf(
+            val previous = readRecovery(victim)
+            val application = Application(
                 System.currentTimeMillis() + duration * 50L,
-                if (glowing) 0L else 1L,
+                glowing,
                 ThreadLocalRandom.current().nextLong()
             )
+            val history = previous?.applications.orEmpty()
+            // Consecutive equal requests refresh the current layer. Opposite requests cover it.
+            val remaining = if (history.firstOrNull()?.glowing == glowing) history.drop(1) else history
+            val recovery = Recovery(previous?.restoreGlowing ?: !glowing, listOf(application) + remaining)
             // Save recovery alongside the flag before a quit or world save can persist it.
-            victim.persistentDataContainer.set(recoveryKey, PersistentDataType.LONG_ARRAY, recovery)
+            saveRecovery(victim, recovery)
             victim.isGlowing = glowing
-            scheduleRestore(victim, recovery, duration.toLong())
+            scheduleRestore(victim, application, duration.toLong())
         } else {
             victim.persistentDataContainer.remove(recoveryKey)
             victim.isGlowing = glowing
@@ -86,24 +95,80 @@ object EffectSetGlowing : Effect<NoCompileData>("set_glowing") {
     }
 
     private fun restoreLoadedEntity(entity: LivingEntity) {
-        val recovery = entity.persistentDataContainer.get(recoveryKey, PersistentDataType.LONG_ARRAY) ?: return
-        if (recovery.size != 3) return
-        val remaining = recovery[0] - System.currentTimeMillis()
-        if (remaining <= 0) {
-            restore(entity, recovery)
-        } else {
-            scheduleRestore(entity, recovery, (remaining + 49) / 50)
+        val recovery = readRecovery(entity) ?: return
+        val now = System.currentTimeMillis()
+        val active = recovery.applications.filter { it.deadline > now }
+        if (active.isEmpty()) {
+            entity.isGlowing = recovery.restoreGlowing
+            entity.persistentDataContainer.remove(recoveryKey)
+            return
+        }
+        if (active.size != recovery.applications.size) {
+            saveRecovery(entity, Recovery(recovery.restoreGlowing, active))
+            if (active.first().token != recovery.applications.first().token) {
+                entity.isGlowing = active.first().glowing
+            }
+        }
+        for (application in active) {
+            scheduleRestore(entity, application, (application.deadline - now + 49) / 50)
         }
     }
 
-    private fun scheduleRestore(entity: LivingEntity, recovery: LongArray, ticks: Long) {
-        SchedulerHelper.runTaskLater(plugin, entity, { restore(entity, recovery) }, ticks)
+    private fun scheduleRestore(entity: LivingEntity, application: Application, ticks: Long) {
+        val token = application.token
+        SchedulerHelper.runTaskLater(plugin, entity, { restore(entity, token) }, ticks)
     }
 
-    private fun restore(entity: LivingEntity, recovery: LongArray) {
+    private fun restore(entity: LivingEntity, token: Long) {
+        val recovery = readRecovery(entity) ?: return
+        val index = recovery.applications.indexOfFirst { it.token == token }
+        if (index < 0) return
+        val remaining = recovery.applications.filterIndexed { position, _ -> position != index }
+        if (remaining.isEmpty()) {
+            entity.isGlowing = recovery.restoreGlowing
+            entity.persistentDataContainer.remove(recoveryKey)
+        } else {
+            saveRecovery(entity, Recovery(recovery.restoreGlowing, remaining))
+            if (index == 0) entity.isGlowing = remaining.first().glowing
+        }
+    }
+
+    private fun readRecovery(entity: LivingEntity): Recovery? {
+        val record = entity.persistentDataContainer.get(recoveryKey, PersistentDataType.LONG_ARRAY) ?: return null
+        if (record.size == 3) {
+            val restoreGlowing = record[1] != 0L
+            return Recovery(restoreGlowing, listOf(Application(record[0], !restoreGlowing, record[2])))
+        }
+        if (record.size < 5 || (record.size - 5) % 3 != 0 || record[3] != LAYERED_RECORD_VERSION) return null
+        val applications = mutableListOf(Application(record[0], record[4] != 0L, record[2]))
+        for (offset in 5 until record.size step 3) {
+            applications += Application(record[offset], record[offset + 1] != 0L, record[offset + 2])
+        }
+        return Recovery(record[1] != 0L, applications)
+    }
+
+    private fun saveRecovery(entity: LivingEntity, recovery: Recovery) {
         val container = entity.persistentDataContainer
-        if (!recovery.contentEquals(container.get(recoveryKey, PersistentDataType.LONG_ARRAY))) return
-        entity.isGlowing = recovery[1] != 0L
-        container.remove(recoveryKey)
+        val current = recovery.applications.first()
+        val restoreValue = if (recovery.restoreGlowing) 1L else 0L
+        if (recovery.applications.size == 1 && current.glowing != recovery.restoreGlowing) {
+            container.set(recoveryKey, PersistentDataType.LONG_ARRAY, longArrayOf(current.deadline, restoreValue, current.token))
+            return
+        }
+        // Extended record: deadline, final restoration, token, version, current value, then older triples.
+        val record = LongArray(5 + (recovery.applications.size - 1) * 3)
+        record[0] = current.deadline
+        record[1] = restoreValue
+        record[2] = current.token
+        record[3] = LAYERED_RECORD_VERSION
+        record[4] = if (current.glowing) 1L else 0L
+        for (index in 1 until recovery.applications.size) {
+            val application = recovery.applications[index]
+            val offset = 5 + (index - 1) * 3
+            record[offset] = application.deadline
+            record[offset + 1] = if (application.glowing) 1L else 0L
+            record[offset + 2] = application.token
+        }
+        container.set(recoveryKey, PersistentDataType.LONG_ARRAY, record)
     }
 }
