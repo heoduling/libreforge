@@ -174,17 +174,21 @@ abstract class ItemHolderFinder<T : Holder> {
             val heldSlot = (entity as? Player)?.inventory?.heldItemSlot
             val holders = ArrayList<TypedProvidedHolder<T>>()
 
-            // Only check for non-combined slot types
-            for (slot in SlotTypes.baseTypes) {
-                if (slot is NumericSlotType) {
-                    // Numeric inventory slots are empty for non-player entities. A player's
-                    // selected numeric slot is already represented by the main-hand slot.
-                    if (heldSlot == null || slot.slot == heldSlot) {
+            val slots = SlotTypes.baseTypes
+            val indexed = slots as? IndexedSlotSet
+            val mobSlots = if (entity !is Player) indexed?.mobSlots() else null
+            if (mobSlots != null) {
+                for (slot in mobSlots) {
+                    appendHolders(entity, slot, holders)
+                }
+            } else {
+                for (slot in indexed?.scanSlots() ?: slots) {
+                    // The selected player inventory slot is represented by the main hand.
+                    if (slot is NumericSlotType && (heldSlot == null || slot.slot == heldSlot)) {
                         continue
                     }
+                    appendHolders(entity, slot, holders)
                 }
-
-                appendHolders(entity, slot, holders)
             }
 
             // The map is intentionally bounded: all entries naturally expire after 500ms, but a burst of unique

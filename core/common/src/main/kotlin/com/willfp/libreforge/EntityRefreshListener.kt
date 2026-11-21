@@ -2,6 +2,7 @@ package com.willfp.libreforge
 
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent
 import com.destroystokyo.paper.event.entity.EntityRemoveFromWorldEvent
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Registry
@@ -14,6 +15,7 @@ import org.bukkit.event.world.ChunkLoadEvent
 import java.lang.ref.WeakReference
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Consumer
 
 object EntityRefreshListener : Listener {
 
@@ -72,26 +74,45 @@ object EntityRefreshListener : Listener {
     }
 
     internal fun pollTrackedEntities() {
-        for ((uuid, reference) in trackedEntities) {
+        trackedEntities.forEach { uuid, reference ->
             val entity = reference.get()
             if (entity == null) {
-                trackedEntities.remove(uuid, reference)
-                continue
+                retireTrackedEntity(uuid, reference)
+                return@forEach
             }
 
-            SchedulerHelper.runTaskForEntity(
-                plugin,
-                entity,
-                Runnable {
-                    if (!entity.isValid || entity.isDead) {
-                        trackedEntities.remove(uuid, reference)
-                        return@Runnable
-                    }
-                    entity.toDispatcher().pollEffects()
-                },
-                Runnable { trackedEntities.remove(uuid, reference) }
-            )
+            if (SchedulerHelper.isFolia) {
+                val task = EntityPollTask(entity, uuid, reference)
+                entity.scheduler.run(plugin, task, task)
+            } else {
+                SchedulerHelper.runTaskForEntity(plugin, entity, Runnable {
+                    pollTrackedEntity(entity, uuid, reference)
+                }, null)
+            }
         }
+    }
+
+    @JvmStatic
+    private fun pollTrackedEntity(entity: LivingEntity, uuid: UUID, reference: WeakReference<LivingEntity>) {
+        if (!entity.isValid || entity.isDead) {
+            retireTrackedEntity(uuid, reference)
+            return
+        }
+        entity.toDispatcher().pollEffects()
+    }
+
+    @JvmStatic
+    private fun retireTrackedEntity(uuid: UUID, reference: WeakReference<LivingEntity>) {
+        trackedEntities.remove(uuid, reference)
+    }
+
+    private class EntityPollTask(
+        private val entity: LivingEntity,
+        private val uuid: UUID,
+        private val reference: WeakReference<LivingEntity>
+    ) : Consumer<ScheduledTask>, Runnable {
+        override fun accept(task: ScheduledTask) = pollTrackedEntity(entity, uuid, reference)
+        override fun run() = retireTrackedEntity(uuid, reference)
     }
 
     internal fun clear() {

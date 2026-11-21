@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 object SlotTypes : Registry<SlotType>() {
     @Volatile
-    var baseTypes: Set<SlotType> = ConcurrentHashMap.newKeySet()
+    var baseTypes: Set<SlotType> = IndexedSlotSet(ConcurrentHashMap.newKeySet())
         private set
 
     override fun get(id: String): SlotType? {
@@ -61,15 +61,17 @@ object SlotTypes : Registry<SlotType>() {
     }
 
     override fun onRegister(element: SlotType) {
-        val newSet = ConcurrentHashMap.newKeySet<SlotType>()
-        newSet.addAll(values().filter { it !is CombinedSlotType })
-        baseTypes = newSet
+        updateBaseTypes()
     }
 
     override fun onRemove(element: SlotType) {
+        updateBaseTypes()
+    }
+
+    private fun updateBaseTypes() {
         val newSet = ConcurrentHashMap.newKeySet<SlotType>()
         newSet.addAll(values().filter { it !is CombinedSlotType })
-        baseTypes = newSet
+        baseTypes = IndexedSlotSet(newSet)
     }
 
     init {
