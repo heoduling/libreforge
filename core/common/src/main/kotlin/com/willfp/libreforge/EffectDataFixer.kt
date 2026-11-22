@@ -1,6 +1,5 @@
 package com.willfp.libreforge
 
-import com.willfp.libreforge.effects.Effects
 import com.willfp.libreforge.effects.arguments.impl.ArgumentCooldown
 import com.willfp.libreforge.effects.arguments.impl.ArgumentEvery
 import com.willfp.libreforge.effects.impl.EffectAddHolder
@@ -80,12 +79,11 @@ object EffectDataFixer : Listener {
 
     private fun Player.fixAttributes() {
         try {
-            val effectIds = Effects.values().map { it.id }.toSet()
-
             for (attribute in Registry.ATTRIBUTE) {
                 val inst = this.getAttribute(attribute) ?: continue
                 for (mod in inst.modifiers) {
-                    if (mod.name.startsWith("libreforge") || effectIds.any { mod.name.startsWith(it) }) {
+                    // Bukkit's short name omits the namespace and can match another plugin's equipment.
+                    if (mod.key.namespace == "libreforge") {
                         inst.removeModifier(mod)
                     }
                 }
