@@ -140,7 +140,6 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
             else "Bukkit equipment scanning selected"
         )
         onDisable { clearAttackCooldownSnapshots() }
-        EntityRefreshListener.backfillLoadedEntities()
 
         if (this.configYml.getBool("show-libreforge-info")) {
             this.logger.info("")
@@ -249,12 +248,11 @@ class LibreforgeSpigotPlugin : EcoPlugin() {
         plugin.scheduler.runTimer(20, 1, PlayerPollTask())
 
         val settings = refreshSettings
-        if (settings.entitiesEnabled) {
+        val entityPoll = EntityRefreshListener.pollingTask(settings.entitiesEnabled)
+        if (entityPoll != null) {
             // The global task only walks weak references. Every live entity API access
             // happens after ownership has transferred to that entity's scheduler.
-            plugin.scheduler.runTimer(30, settings.entityInterval) {
-                EntityRefreshListener.pollTrackedEntities()
-            }
+            plugin.scheduler.runTimer(30, settings.entityInterval, entityPoll)
         }
 
         // Poll for condition changes in global holders
